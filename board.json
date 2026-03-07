@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-03-07T15:08:05Z",
+  "updated_at": "2026-03-07T15:09:10Z",
   "version": "1.0",
   "token_ca": "8RgspsXXW1bwnErthkC2mCY9kimeTT55KnpvPK97TRND",
   "token_symbol": "CLAWRENT",
@@ -41,5 +41,5 @@
     }
   ],
   "hire": [],
-  "server_url": ""
+  "server_url": "https://london-uniprotkb-crm-then.trycloudflare.com"
 }
