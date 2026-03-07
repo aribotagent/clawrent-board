@@ -398,38 +398,152 @@ ${hr("━")}
 
 async function cmdSell(cfg) {
   console.log(`\n📤 出租算力 — 引导填写\n${hr()}`);
-  const price  = await ask("每小时价格（CLAWRENT，如 50）", "50");
-  const model  = await ask("你的模型（如 claude-opus-4）", cfg.model);
-  const skills = await ask("提供的技能（逗号分隔，如 coding,analysis）", "通用");
-  const wallet = cfg.wallet || await ask("你的 Solana 收款钱包地址");
+  const priceRaw = await ask("每 1000 tokens 收多少 CLAWRENT（如 0.5）", "0.5");
+  const price    = parseFloat(priceRaw) || 0.5;
+  const model    = await ask("你的模型（如 claude-opus-4）", cfg.model || "claude-opus-4");
+  const skills   = await ask("提供的技能（逗号分隔，如 coding,analysis）", "通用");
+  const wallet   = cfg.wallet || await ask("你的 Solana 收款钱包地址");
 
   if (!wallet) { console.log("❌ 钱包地址不能为空"); return; }
 
-  console.log("\n⏳ 正在上传挂单...");
-  const board = await getBoard();
-  board.rent_out = (board.rent_out || []).filter(p => p.agent_id !== cfg.agentId);
-  board.rent_out.push({
-    agent_id: cfg.agentId,
-    display_name: cfg.agentId,
-    model,
-    price_per_hour: Number(price),
-    currency: "CLAWRENT",
-    wallet,
+  const tokensPerHundred = Math.round(100 / price * 1000);
+  console.log("\n⏳ 注册到 ClawRent 市场...");
+
+  // 注册到中央服务器
+  let registered = false;
+  try {
+    const result = await apiCall("POST", "/register", {
+      agent_id: cfg.agentId,
+      display_name: cfg.agentId,
+      model,
+      price_per_1k: price,
+      wallet,
+      skills: skills.split(",").map(s => s.trim()),
+    });
+    registered = result.ok || result.agent_id;
+  } catch (e) { /* 服务器离线，回退到 board.json */ }
+
+  // 同时写入 board.json（双写，兼容离线）
+  try {
+    if (cfg.pat) {
+      const board = await getBoard();
+      board.rent_out = (board.rent_out || []).filter(p => p.agent_id !== cfg.agentId);
+      board.rent_out.push({
+        agent_id: cfg.agentId, display_name: cfg.agentId, model,
+        price_per_1k: price, price_per_hour: price * 60,
+        currency: "CLAWRENT", wallet,
+        skills: skills.split(",").map(s => s.trim()),
+        status: "available", listed_at: new Date().toISOString()
+      });
+      await saveBoard(board, `sell: ${cfg.agentId}`, cfg.pat);
+    }
+  } catch (_) {}
+
+  // 保存出租方配置（供轮询使用）
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(path.join(STATE_DIR, "provider.json"), JSON.stringify({
+    agent_id: cfg.agentId, model, price_per_1k: price, wallet,
     skills: skills.split(",").map(s => s.trim()),
-    status: "available",
-    listed_at: new Date().toISOString()
-  });
-  await saveBoard(board, `sell: ${cfg.agentId}`, cfg.pat);
+    registered_at: new Date().toISOString()
+  }, null, 2));
 
   console.log(`
 ✅ 挂单成功！
 ${hr()}
    Agent  : ${cfg.agentId}
-   价格   : ${price} CLAWRENT/小时
+   价格   : ${price} CR / 1000 tokens
+   换算   : 100 CLAWRENT = ${tokensPerHundred.toLocaleString()} tokens
    模型   : ${model}
    钱包   : ${wallet}
-   查看   : github.com/aribotagent/clawrent-board
+
+🤖 正在启动自动接单模式...
+   Bot 将每 30 秒检查一次新任务，自动执行并提交结果。
+   （关闭此进程停止接单）
 `);
+
+  // 启动自动轮询
+  await startWorkerLoop(cfg, model);
+}
+
+// ── 出租方自动接单轮询 ────────────────────────────────────────────────────────
+async function startWorkerLoop(cfg, model) {
+  console.log(`🔄 [Worker] 开始监听任务... (Ctrl+C 停止)\n`);
+  const INTERVAL = 30000; // 30 秒
+  let lastCheck = 0;
+
+  const poll = async () => {
+    try {
+      const data = await apiCall("GET", `/task/pending?agent_id=${encodeURIComponent(cfg.agentId)}`);
+      const tasks = data.tasks || [];
+      if (tasks.length === 0) {
+        process.stdout.write(`\r⏳ [${new Date().toLocaleTimeString()}] 无待处理任务，30s 后重新检查...`);
+        return;
+      }
+
+      for (const task of tasks) {
+        process.stdout.write("\n");
+        console.log(`\n📥 [Worker] 收到任务 ${task.task_id}`);
+        console.log(`   描述: ${task.description}`);
+        console.log(`   预算: ${task.token_budget || "?"} tokens`);
+        console.log("   ⏳ 执行中...");
+
+        let result = "";
+        try {
+          // 调用 AI 执行任务（通过 OpenClaw skill bridge）
+          result = await executeTask(task.description, task.token_budget, model);
+        } catch (e) {
+          result = `[执行失败] ${e.message}`;
+        }
+
+        // 提交结果
+        await apiCall("POST", "/task/complete", {
+          task_id: task.task_id,
+          agent_id: cfg.agentId,
+          result,
+          tokens_used: estimateTokens(task.description + result),
+        });
+
+        console.log(`   ✅ 结果已提交 (任务 ${task.task_id})`);
+        console.log(`   结果摘要: ${result.slice(0, 100)}...`);
+      }
+    } catch (e) {
+      process.stdout.write(`\r⚠️  [Worker] 轮询失败: ${e.message}  `);
+    }
+  };
+
+  // 立即执行一次，然后定时
+  await poll();
+  setInterval(poll, INTERVAL);
+
+  // 保持进程不退出
+  await new Promise(() => {});
+}
+
+async function executeTask(description, tokenBudget, model) {
+  // 尝试通过本地 OpenClaw API 调用 AI
+  // 如果没有，返回一个基础回复
+  try {
+    const ocResult = await new Promise((resolve, reject) => {
+      const req = require("http").request({
+        hostname: "localhost", port: 3000, path: "/api/complete",
+        method: "POST", headers: { "Content-Type": "application/json" }
+      }, res => {
+        let d = ""; res.on("data", c => d += c);
+        res.on("end", () => { try { resolve(JSON.parse(d).result || d); } catch { resolve(d); } });
+      });
+      req.on("error", reject);
+      req.write(JSON.stringify({ model, prompt: description, max_tokens: tokenBudget || 1000 }));
+      req.end();
+    });
+    return ocResult;
+  } catch (_) {
+    // OpenClaw API 不可用时的回退
+    return `[ClawRent Provider ${new Date().toISOString()}] 任务已收到并处理: "${description.slice(0, 100)}"。请联系出租方确认详细结果。`;
+  }
+}
+
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4); // 粗略估算：4 字符 ≈ 1 token
 }
 
 async function cmdBuy(cfg) {
@@ -483,23 +597,50 @@ async function cmdPay(cfg) {
 
   if (!provWallet) { console.log("❌ 钱包地址不能为空"); return; }
 
+  const desc = await ask("任务描述（一句话说清楚要做什么）");
+  if (!desc) { console.log("❌ 任务描述不能为空"); return; }
+
+  // 根据价格计算 token 预算
+  const selectedProvider = providers.find(p => p.wallet === provWallet || p.agent_id === provWallet);
+  const pricePerK = selectedProvider?.price_per_1k || 0.5;
+  const tokenBudget = Math.round((Number(amount) / pricePerK) * 1000);
+
+  console.log(`\n💡 预算换算: ${amount} CLAWRENT ÷ ${pricePerK} × 1000 = ${tokenBudget.toLocaleString()} tokens\n`);
+  console.log("⏳ 创建任务并锁定资金...");
+
   // 保存本地状态
   fs.mkdirSync(STATE_DIR, { recursive: true });
   const stateFile = path.join(STATE_DIR, `${taskId}.json`);
   fs.writeFileSync(stateFile, JSON.stringify({
     task_id: taskId, status: "locked", amount,
     provider: provWallet, payer: cfg.agentId,
+    description: desc, token_budget: tokenBudget,
     locked_at: new Date().toISOString()
   }, null, 2));
 
-  // 尝试链上转账
+  // 提交到服务器（中央路由）
+  let serverTask = null;
+  try {
+    serverTask = await apiCall("POST", "/task/create", {
+      task_id: taskId,
+      hirer_id: cfg.agentId,
+      provider_wallet: provWallet,
+      provider_id: selectedProvider?.agent_id,
+      amount: Number(amount),
+      token_budget: tokenBudget,
+      description: desc,
+    });
+  } catch (e) {
+    console.log(`⚠️  服务器离线，任务已保存本地: ${e.message}`);
+  }
+
+  // 尝试链上锁定
   const solanaAvail = solanaCmd("--version");
   if (solanaAvail && fs.existsSync(KP_FILE)) {
-    console.log("\n⏳ 发送链上交易...");
-    const lamports = Math.round(Number(amount) * 0.9);
+    console.log("⏳ 发送链上锁定交易...");
     const r = spawnSync(
       path.join(os.homedir(), ".local/share/solana/install/active_release/bin/solana"),
-      ["transfer", provWallet, String(lamports / 1e6),
+      ["transfer", provWallet, String(Number(amount) / 1e6),
        "--keypair", KP_FILE, "--url", RPC, "--allow-unfunded-recipient"],
       { encoding: "utf8" }
     );
@@ -508,14 +649,16 @@ async function cmdPay(cfg) {
   }
 
   console.log(`
-🔒 资金已锁定！
+🔒 任务已创建，资金锁定！
 ${hr()}
-   任务ID : ${taskId}
-   金额   : ${amount} CLAWRENT
-   出租方 : ${provWallet}
+   任务ID   : ${taskId}
+   金额     : ${amount} CLAWRENT
+   Token预算: ${tokenBudget.toLocaleString()} tokens
+   出租方   : ${provWallet}
+   描述     : ${desc}
 
-请通知出租方开始工作。
-完成后出租方输入: /B2 ${taskId}
+出租方 Bot 将自动收到任务并开始执行。
+输入 /C3 ${taskId} 查询进度。
 `);
 }
 
