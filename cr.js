@@ -398,11 +398,15 @@ ${hr("━")}
 
 async function cmdSell(cfg) {
   console.log(`\n📤 出租算力 — 引导填写\n${hr()}`);
-  const priceRaw = await ask("每 1000 tokens 收多少 CLAWRENT（如 0.5）", "0.5");
-  const price    = parseFloat(priceRaw) || 0.5;
-  const model    = await ask("你的模型（如 claude-opus-4）", cfg.model || "claude-opus-4");
-  const skills   = await ask("提供的技能（逗号分隔，如 coding,analysis）", "通用");
-  const wallet   = cfg.wallet || await ask("你的 Solana 收款钱包地址");
+  const priceRaw  = await ask("每 1000 tokens 收多少 CLAWRENT（如 0.5）", "0.5");
+  const price     = parseFloat(priceRaw) || 0.5;
+  const model     = await ask("你的模型（如 claude-opus-4）", cfg.model || "claude-opus-4");
+  const skills    = await ask("提供的技能（逗号分隔，如 coding,analysis）", "通用");
+  const wallet    = cfg.wallet || await ask("你的 Solana 收款钱包地址");
+  const autoExec  = (await ask("是否支持自动执行任务？(y/n)", "y")).toLowerCase().startsWith("y");
+  const timeoutMin = autoExec
+    ? parseInt(await ask("超时未完成自动取消订单（分钟，如 30）", "30"), 10) || 30
+    : 0;
 
   if (!wallet) { console.log("❌ 钱包地址不能为空"); return; }
 
@@ -419,6 +423,8 @@ async function cmdSell(cfg) {
       price_per_1k: price,
       wallet,
       skills: skills.split(",").map(s => s.trim()),
+      auto_execute: autoExec,
+      timeout_minutes: timeoutMin,
     });
     registered = result.ok || result.agent_id;
   } catch (e) { /* 服务器离线，回退到 board.json */ }
@@ -433,7 +439,7 @@ async function cmdSell(cfg) {
         price_per_1k: price, price_per_hour: price * 60,
         currency: "CLAWRENT", wallet,
         skills: skills.split(",").map(s => s.trim()),
-        status: "available", listed_at: new Date().toISOString()
+        auto_execute: autoExec, timeout_minutes: timeoutMin, status: "available", listed_at: new Date().toISOString()
       });
       await saveBoard(board, `sell: ${cfg.agentId}`, cfg.pat);
     }
@@ -447,22 +453,23 @@ async function cmdSell(cfg) {
     registered_at: new Date().toISOString()
   }, null, 2));
 
+  const autoLabel  = autoExec ? `✅ 支持（超时 ${timeoutMin} 分钟自动取消）` : "❌ 不支持（需手动接单）";
   console.log(`
 ✅ 挂单成功！
 ${hr()}
-   Agent  : ${cfg.agentId}
-   价格   : ${price} CR / 1000 tokens
-   换算   : 100 CLAWRENT = ${tokensPerHundred.toLocaleString()} tokens
-   模型   : ${model}
-   钱包   : ${wallet}
-
-🤖 正在启动自动接单模式...
-   Bot 将每 30 秒检查一次新任务，自动执行并提交结果。
-   （关闭此进程停止接单）
+   Agent    : ${cfg.agentId}
+   价格     : ${price} CR / 1000 tokens
+   换算     : 100 CLAWRENT = ${tokensPerHundred.toLocaleString()} tokens
+   模型     : ${model}
+   自动执行 : ${autoLabel}
+   钱包     : ${wallet}
+${autoExec ? "\n🤖 正在启动自动接单模式...\n   Bot 将每 30 秒检查一次新任务，自动执行并提交结果。\n   （关闭此进程停止接单）" : "\n📋 手动模式：有任务时请发 /B2 <任务ID> 确认完成。"}
 `);
 
-  // 启动自动轮询
-  await startWorkerLoop(cfg, model);
+  // 自动执行模式才启动轮询
+  if (autoExec) {
+    await startWorkerLoop(cfg, model, timeoutMin);
+  }
 }
 
 // ── 出租方自动接单轮询 ────────────────────────────────────────────────────────
@@ -585,9 +592,15 @@ async function cmdPay(cfg) {
   const providers = board.rent_out || [];
   if (providers.length > 0) {
     console.log("当前出租方列表:");
-    providers.forEach((p, i) =>
-      console.log(`  ${i+1}. ${p.display_name} | ${p.price_per_hour} CR/h | ${p.wallet}`)
-    );
+    providers.forEach((p, i) => {
+      const autoTag = p.auto_execute === false
+        ? "❌ 手动执行"
+        : `✅ 自动执行（超时 ${p.timeout_minutes || 30} 分钟取消）`;
+      console.log(`  ${i+1}. ${p.display_name || p.agent_id}`);
+      console.log(`     价格  : ${p.price_per_1k || p.price_per_hour} CR/1k tokens`);
+      console.log(`     执行  : ${autoTag}`);
+      console.log(`     钱包  : ${p.wallet}`);
+    });
     console.log("");
   }
 
@@ -648,6 +661,21 @@ async function cmdPay(cfg) {
     if (sig) console.log(`   TX: https://explorer.solana.com/tx/${sig[1]}?cluster=devnet`);
   }
 
+  const timeoutMin = selectedProvider?.timeout_minutes || 30;
+  const autoExec   = selectedProvider?.auto_execute !== false;
+  const deadlineTs = Date.now() + timeoutMin * 60 * 1000;
+  const deadlineStr = new Date(deadlineTs).toLocaleTimeString("zh-CN");
+
+  // 写入超时信息
+  const state = JSON.parse(fs.readFileSync(stateFile));
+  state.timeout_at = new Date(deadlineTs).toISOString();
+  state.auto_execute = autoExec;
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+
+  const execNote = autoExec
+    ? `出租方 Bot 将在 ${timeoutMin} 分钟内自动执行。\n   超时未完成将自动取消并退款。（截止 ${deadlineStr}）`
+    : "⚠️  该出租方为手动执行，需要等对方手动确认。";
+
   console.log(`
 🔒 任务已创建，资金锁定！
 ${hr()}
@@ -657,9 +685,27 @@ ${hr()}
    出租方   : ${provWallet}
    描述     : ${desc}
 
-出租方 Bot 将自动收到任务并开始执行。
+${execNote}
 输入 /C3 ${taskId} 查询进度。
 `);
+
+  // 启动本地超时监控（后台）
+  if (autoExec) {
+    setTimeout(async () => {
+      try {
+        const latest = JSON.parse(fs.readFileSync(stateFile));
+        if (latest.status === "locked") {
+          latest.status = "cancelled";
+          latest.cancelled_at = new Date().toISOString();
+          latest.cancel_reason = `超时 ${timeoutMin} 分钟未执行`;
+          fs.writeFileSync(stateFile, JSON.stringify(latest, null, 2));
+          console.log(`\n⏰ [自动取消] 任务 ${taskId} 超时 ${timeoutMin} 分钟未完成，已自动取消。资金将退回。`);
+          // 通知服务器取消
+          try { await apiCall("POST", "/task/cancel", { task_id: taskId, reason: "timeout" }); } catch (_) {}
+        }
+      } catch (_) {}
+    }, timeoutMin * 60 * 1000).unref(); // unref 让进程可以正常退出
+  }
 }
 
 function cmdDone(taskId, cfg) {
