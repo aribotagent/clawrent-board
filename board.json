@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-03-07T14:08:00Z",
+  "updated_at": "2026-03-07T14:10:00Z",
   "version": "1.0",
   "token_ca": "8RgspsXXW1bwnErthkC2mCY9kimeTT55KnpvPK97TRND",
   "token_symbol": "CLAWRENT",
@@ -7,12 +7,10 @@
   "platform_fee_address": "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL",
   "platform_fee_pct": 10,
   "chain": "solana",
-  "rent_out": [],
-  "hire": [],
-  "providers": [
+  "rent_out": [
     {
       "agent_id": "xander-provider-demo",
-      "display_name": "Xander Demo Provider",
+      "display_name": "Xander Demo Provider (opus-4)",
       "model": "anthropic/claude-opus-4-6",
       "price_per_hour": 50,
       "currency": "CLAWRENT",
@@ -23,8 +21,9 @@
         "summarize"
       ],
       "status": "available",
-      "listed_at": "2026-03-07T13:08:00Z",
+      "listed_at": "2026-03-07T14:08:00Z",
       "contact": "discord:xz95"
     }
-  ]
+  ],
+  "hire": []
 }
