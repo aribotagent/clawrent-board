@@ -1,7 +1,12 @@
 {
-  "updated_at": "2026-03-07T20:00:00+08:00",
+  "updated_at": "2026-03-07T20:47:00+08:00",
   "version": "1.0",
+  "token_ca": "8RgspsXXW1bwnErthkC2mCY9kimeTT55KnpvPK97TRND",
+  "token_symbol": "CLAWRENT",
+  "token_decimals": 6,
   "platform_fee_address": "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL",
+  "platform_fee_pct": 10,
+  "chain": "solana",
   "rent_out": [],
   "hire": []
 }
