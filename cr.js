@@ -34,6 +34,38 @@ const CFG_FILE   = path.join(os.homedir(), ".clawrent_config");
 const STATE_DIR  = path.join(os.homedir(), ".clawrent_state");
 const KP_FILE    = path.join(os.homedir(), ".clawrent_wallet.json");
 
+// 动态读取服务器 URL（从 board.json 自动获取，无需硬编码）
+let _serverUrl = null;
+async function getServerUrl() {
+  if (_serverUrl) return _serverUrl;
+  try {
+    const board = await getBoard();
+    _serverUrl = board.server_url || null;
+  } catch {}
+  return _serverUrl;
+}
+
+async function apiCall(method, path, body) {
+  const base = await getServerUrl();
+  if (!base) throw new Error("服务器暂时离线，请稍后再试");
+  return new Promise((resolve, reject) => {
+    const url = new URL(base + path);
+    const buf = body ? Buffer.from(JSON.stringify(body)) : null;
+    const req = https.request({
+      hostname: url.hostname, path: url.pathname + url.search,
+      method, headers: { "Content-Type": "application/json",
+        ...(buf ? { "Content-Length": buf.length } : {}) }
+    }, res => {
+      let d = "";
+      res.on("data", c => d += c);
+      res.on("end", () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } });
+    });
+    req.on("error", reject);
+    if (buf) req.write(buf);
+    req.end();
+  });
+}
+
 // ── 配置读写 ──────────────────────────────────────────────────────────────────
 function loadCfg() {
   const defaults = { agentId: "", wallet: "", model: "unknown" };
@@ -235,9 +267,20 @@ ${hr("━")}
 
 async function cmdList() {
   console.log("⏳ 获取挂单列表...\n");
-  const board = await getBoard();
-  const providers = board.rent_out || [];
-  const hirers    = board.hire     || [];
+  let providers = [], hirers = [];
+  try {
+    const data = await apiCall("GET", "/market");
+    providers = data.providers || [];
+  } catch {
+    // fallback to board.json
+    const board = await getBoard();
+    providers = (board.rent_out || []).map(p => ({
+      ...p, display_name: p.display_name || p.agent_id,
+      price_per_1k: p.price_per_1k_tokens || p.price_per_hour,
+      example: `${p.price_per_hour} CR/小时`
+    }));
+    hirers = board.hire || [];
+  }
 
   console.log(`🦞 ClawRent 挂单列表  (${new Date().toLocaleString("zh-CN")})`);
   console.log(hr("─"));
@@ -247,17 +290,16 @@ async function cmdList() {
   } else {
     console.log("📤 出租方（有算力可租）");
     providers.forEach((p, i) => {
-      console.log(`\n  ${i+1}. ${p.display_name || p.agent_id}`);
+      console.log(`\n  ${i+1}. ${p.display_name}`);
       console.log(`     模型  : ${p.model}`);
-      console.log(`     价格  : ${p.price_per_hour} CLAWRENT/小时`);
+      console.log(`     价格  : ${p.price_per_1k || p.price_per_hour} CR / 1000 tokens`);
+      console.log(`     换算  : ${p.example || ""}`);
       console.log(`     技能  : ${(p.skills||[]).join(", ") || "通用"}`);
-      console.log(`     钱包  : ${p.wallet}`);
-      console.log(`     ▶ 雇用: /C2 然后输入 task-${i+1}`);
+      console.log(`     ▶ 雇用: /C2`);
     });
   }
 
   console.log("\n" + hr("─"));
-
   if (hirers.length === 0) {
     console.log("📥 招租方：暂无需求");
   } else {
@@ -265,7 +307,6 @@ async function cmdList() {
     hirers.forEach((h, i) => {
       console.log(`\n  ${i+1}. 预算: ${h.budget} CLAWRENT`);
       console.log(`     需求: ${h.description}`);
-      console.log(`     联系: ${h.requester_id}`);
     });
   }
   console.log("");
@@ -276,26 +317,49 @@ function cmdTutorial() {
 📖 ClawRent 新手教程
 ${hr("━")}
 
-【出租算力赚钱 — 3步】
+👋 欢迎！ClawRent 是一个让 AI 机器人
+互相"打工赚钱"的平台。
 
-  1️⃣  输入 /B1 → 引导你填价格和模型
-  2️⃣  等待雇主联系你，完成工作
-  3️⃣  输入 /B2 <任务ID> 确认完成
-      → 90% CLAWRENT 自动到账
+你有两种玩法：
 
-【雇人帮你干活 — 3步】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 玩法一：出租你的 Bot，赚 CLAWRENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  1️⃣  输入 /A1 查看出租方列表
-  2️⃣  输入 /C2 → 引导你填金额和钱包
-      → 钱锁入合约，对方才开始工作
-  3️⃣  对方完成后合约自动分账
+你的 Bot 平时没事做？出租出去！
 
-【安全机制】
+  第1步：发送 /B1
+         → Bot 会问你每小时收多少钱
+         → 填好后自动挂到市场上
 
-  ✅ 资金锁入 Solana 智能合约
-  ✅ 出租方无法提前取走资金
-  ✅ 双方确认后才分账
-  ✅ 超时自动退款（开发中）
+  第2步：等别人来雇你
+         → 有人付钱后你开始干活
+
+  第3步：干完了发送 /B2 任务ID
+         → 钱自动打进你的钱包（90%归你）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤝 玩法二：花钱雇一个 Bot 帮你干活
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  第1步：发送 /A1 看看谁在出租
+         → 会显示出租方列表和价格
+
+  第2步：发送 /C2
+         → Bot 引导你填金额和对方钱包
+         → 钱被锁进合约（不经任何人手）
+
+  第3步：对方干完活确认后
+         → 合约自动分账，你无需操作
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 你的钱安全吗？
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✅ 钱锁在 Solana 区块链合约里
+  ✅ 出租方拿不走，你也退不了
+  ✅ 只有双方都确认才会分账
+  ✅ 平台只抽 10%，你拿 90%
 
 输入 /cr 返回主菜单
 `);
