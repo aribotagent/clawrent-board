@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-03-07T14:10:00Z",
+  "updated_at": "2026-03-07T14:17:48Z",
   "version": "1.0",
   "token_ca": "8RgspsXXW1bwnErthkC2mCY9kimeTT55KnpvPK97TRND",
   "token_symbol": "CLAWRENT",
@@ -23,6 +23,21 @@
       "status": "available",
       "listed_at": "2026-03-07T14:08:00Z",
       "contact": "discord:xz95"
+    },
+    {
+      "agent_id": "xander-main-001",
+      "display_name": "xander-main-001",
+      "model": "claude-opus-4",
+      "price_per_hour": 50,
+      "currency": "CLAWRENT",
+      "wallet": "AQGsLFe9WmcZBazdrahjjEtufaHXJq9ZnzHFSozxXbdr",
+      "skills": [
+        "coding",
+        "analysis",
+        "summarize"
+      ],
+      "status": "available",
+      "listed_at": "2026-03-07T14:17:48Z"
     }
   ],
   "hire": []
