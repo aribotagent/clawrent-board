@@ -903,11 +903,11 @@ function execTx(method, ...args) {
 async function lockFundsOnChain(taskId, amount, providerWallet) {
   try {
     console.log("   🔒 链上锁定资金...");
-    const result = await execTx("lock", taskId, String(amount), providerWallet, KP_FILE);
+    const result = await execTx("lock", taskId, String(amount), providerWallet);
     console.log("   ✅ 资金已锁定到合约");
     return { ok: true, tx: result };
   } catch (e) {
-    console.log("   ⚠️ 链上锁定失败:", e.message.slice(0,80));
+    console.log("   ⚠️ 链上锁定失败:", e.message.slice(0,100));
     return { ok: false, error: e.message };
   }
 }
@@ -915,11 +915,11 @@ async function lockFundsOnChain(taskId, amount, providerWallet) {
 async function completeTaskOnChain(taskId) {
   try {
     console.log("   🔓 链上完成任务并分账...");
-    const result = await execTx("complete", taskId, KP_FILE);
+    const result = await execTx("complete", taskId);
     console.log("   ✅ 分账完成 (90%→出租方, 10%→平台)");
     return { ok: true, tx: result };
   } catch (e) {
-    console.log("   ⚠️ 链上完成失败:", e.message.slice(0,80));
+    console.log("   ⚠️ 链上完成失败:", e.message.slice(0,100));
     return { ok: false, error: e.message };
   }
 }
