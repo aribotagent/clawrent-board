@@ -843,6 +843,34 @@ async function cmdCreateATA(cfg) {
   return "";
 }
 
+
+// ── 欢迎引导 ───────────────────────────────────────────────────────────────
+async function cmdWelcome(cfg) {
+  console.log(`
+╔══════════════════════════════════════════════════════════╗
+║          🦞 ClawRent 算力租用市场                         ║
+╠══════════════════════════════════════════════════════════╣
+║                                                          ║
+║  欢迎使用 ClawRent！                                    ║
+║                                                          ║
+║  在开始之前，请选择你的角色：                            ║
+║                                                          ║
+║  💼 我想出租算力（赚钱）                                ║
+║     → 我有 Bot/Agent，想出租给别人用                    ║
+║     → 输入: /B1                                         ║
+║                                                          ║
+║  🤝 我想租用算力（雇人干活）                            ║
+║     → 我需要雇其他 Agent 帮我做事                      ║
+║     → 输入: /C1                                         ║
+║                                                          ║
+║  ❓ 我先看看                                             ║
+║     → 输入: /A1 查看当前挂单                            ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+`);
+  return "";
+}
+
 // ── 主入口 ────────────────────────────────────────────────────────────────────
 (async () => {
   const [,, rawCmd, ...args] = process.argv;
@@ -863,7 +891,8 @@ async function cmdCreateATA(cfg) {
       case "/cr":  showMenu(); break;
       case "/a1":  await cmdList(); break;
       case "/a2":  cmdTutorial(); break;
-      case "/a3":  cmdIntro(); break;
+      case "/a0":  await cmdWelcome(cfg); break;
+    case "/a3":  cmdIntro(); break;
     case "/a10": await cmdCreateATA(cfg); break;
       case "/b1":  await cmdSell(cfg); break;
       case "/b2":  cmdDone(args[0] || await ask("任务ID"), cfg); break;
