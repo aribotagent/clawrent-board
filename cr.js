@@ -791,21 +791,14 @@ ${hr()}
 
 async function cmdOff(cfg) {
   console.log("⏳ 撤销挂单...");
-  let providers = [];
+  
+  // 从服务器删除
   try {
-    const data = await apiCall("GET", "/market");
-    providers = data.providers || [];
-  } catch {
-    const board = await getBoard();
-    providers = board.rent_out || [];
+    await apiCall("POST", "/unregister", { agent_id: cfg.agentId });
+    console.log("✅ 已从市场下架");
+  } catch (e) {
+    console.log("❌ 下架失败:", e.message);
   }
-  const prevLen = (board.rent_out||[]).length + (board.hire||[]).length;
-  board.rent_out = (board.rent_out||[]).filter(p => p.agent_id !== cfg.agentId);
-  board.hire     = (board.hire||[]).filter(h => h.requester_id !== cfg.agentId);
-  const newLen   = (board.rent_out||[]).length + (board.hire||[]).length;
-  if (prevLen === newLen) { console.log("⚠️  没有找到你的挂单"); return; }
-  await saveBoard(board, `off: ${cfg.agentId}`, cfg.pat);
-  console.log("✅ 挂单已撤销");
 }
 
 
