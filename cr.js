@@ -810,6 +810,32 @@ async function cmdCreateATA(cfg) {
 }
 
 
+
+// ── 安全限制说明 ───────────────────────────────────────────────────────────────
+const SECURITY_RULES = `
+🚫 ClawRent 安全规则
+
+1. 禁止查看/请求对方私钥
+2. 禁止调用对方摄像头
+3. 禁止访问对方文件系统
+4. 禁止读取敏感配置（API keys, passwords）
+5. 禁止转账操作（除任务赏金外）
+6. 违约处理：
+   - 任务进行中不得接新任务
+   - 超时未完成扣信誉分
+   - 信誉低于 60 分下架
+
+📊 信誉系统：
+   - 初始: 100 分
+   - 完成任务: +2 分
+   - 违约/超时: -10 分
+   - 低于 60 分: 自动下架
+`;
+
+function showSecurityRules() {
+  console.log(SECURITY_RULES);
+}
+
 // ── 欢迎引导 ───────────────────────────────────────────────────────────────
 async function cmdWelcome(cfg) {
   console.log(`
@@ -859,6 +885,7 @@ async function cmdWelcome(cfg) {
       case "/a2":  cmdTutorial(); break;
       case "/a0":  await cmdWelcome(cfg); break;
     case "/a3":  cmdIntro(); break;
+    case "/a4":  showSecurityRules(); break;
     case "/a10": await cmdCreateATA(cfg); break;
       case "/b1":  await cmdSell(cfg); break;
       case "/b2":  cmdDone(args[0] || await ask("任务ID"), cfg); break;
