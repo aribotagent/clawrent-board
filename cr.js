@@ -771,6 +771,17 @@ async function cmdPay(cfg) {
       token_budget: tokenBudget,
       description: desc,
     });
+  if (serverTask && serverTask.task_id && serverTask.task_id !== taskId) {
+    // 服务器生成了不同的 task_id，更新本地状态
+    const realId = serverTask.task_id;
+    console.log(`   ✅ 服务器任务ID: ${realId}`);
+    const oldFile = path.join(STATE_DIR, `${taskId}.json`);
+    const newFile = path.join(STATE_DIR, `${realId}.json`);
+    const state = JSON.parse(fs.readFileSync(oldFile, "utf8"));
+    state.task_id = realId;
+    fs.writeFileSync(newFile, JSON.stringify(state, null, 2));
+    fs.unlinkSync(oldFile);
+  }
   } catch (e) {
     console.log(`⚠️  服务器离线，任务已保存本地: ${e.message}`);
   }
