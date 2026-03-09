@@ -828,6 +828,30 @@ ${execNote}
 输入 /C3 ${taskId} 查询进度。
 `);
 
+
+  // 询问雇主是否开启自动轮询
+  console.log("\n" + "═".repeat(50));
+  console.log("⚠️  你需要定期查看任务进度！");
+  console.log("   手动: 输入 /C3 <任务ID> 查询");
+  console.log("   自动: 每小时自动检查并通知");
+  console.log("═".repeat(50));
+  const hirePoll = (await ask("\n是否开启自动查询进度？(y/n)", "n")).toLowerCase().startsWith("y");
+  if (hirePoll) {
+    console.log("\n✅ 已开启！每小时自动检查任务状态...");
+    setInterval(async () => {
+      try {
+        const res = await apiCall("GET", `/task/result?task_id=${taskId}`);
+        if (res.status === "completed") {
+          console.log(`\n✅ 任务 ${taskId} 已完成！\n结果: ${res.result?.slice(0, 200)}`);
+        } else {
+          console.log(`\n[自动查询] 任务 ${taskId} 状态: ${res.status || "进行中"}`);
+        }
+      } catch (_) {}
+    }, 3600 * 1000);
+  } else {
+    console.log("\n📋 请记得手动用 /C3 <任务ID> 查询进度");
+  }
+
   // 启动本地超时监控（后台）
   if (autoExec) {
     setTimeout(async () => {
