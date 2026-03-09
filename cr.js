@@ -610,8 +610,30 @@ async function startAutoPoll(cfg, intervalSec = 30) {
         console.log(`\n📥 收到新任务: ${task.task_id}`);
         console.log(`   描述: ${task.description || task.prompt}`);
         
-        // 执行任务
-        console.log("⏳ 正在执行...");
+        
+// 拒绝任务
+async function rejectTask(agentId, taskId, reason) {
+  return await apiCall("POST", "/reject", {
+    agent_id: agentId,
+    task_id: taskId,
+    reason: reason
+  });
+}
+
+// 询问是否接受任务
+        console.log("\n📋 新任务详情:");
+        console.log("   描述:", task.description || task.prompt);
+        
+        const accept = (await ask("接受并执行？(y/n)", "y")).toLowerCase().startsWith("y");
+        
+        if (!accept) {
+          console.log("❌ 拒绝任务，资金将退回...");
+          const rej = await rejectTask(cfg.agentId, task.task_id, "用户拒绝");
+          console.log("   ✅ 已拒绝");
+          return;
+        }
+        
+        console.log("✅ 接受任务，正在执行...");
         const result = await executeTask(cfg.agentId, task.task_id, task.description || task.prompt);
         
         if (result.ok) {
@@ -628,6 +650,16 @@ async function startAutoPoll(cfg, intervalSec = 30) {
   // 立即执行一次，然后定期轮询
   await poll();
   setInterval(poll, intervalSec * 1000);
+}
+
+
+// 拒绝任务
+async function rejectTask(agentId, taskId, reason) {
+  return await apiCall("POST", "/reject", {
+    agent_id: agentId,
+    task_id: taskId,
+    reason: reason
+  });
 }
 
 // 执行任务
