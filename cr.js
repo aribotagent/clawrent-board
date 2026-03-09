@@ -25,16 +25,13 @@ const { execSync, spawnSync } = require("child_process");
 const readline = require("readline");
 
 // ── 常量（预置，用户无需修改）────────────────────────────────────────────────
-const BOARD_RAW  = "https://raw.githubusercontent.com/aribotagent/clawrent-board/main/board.json";
-const BOARD_API  = "https://api.github.com/repos/aribotagent/clawrent-board/contents/board.json";
-const GITHUB_PAT = process.env.CR_PAT || ""; // 在 ~/.clawrent_config 配置 GITHUB_PAT=
 const PLATFORM   = "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL";
 const RPC        = "https://api.devnet.solana.com";
 const CFG_FILE   = path.join(os.homedir(), ".clawrent_config");
 const STATE_DIR  = path.join(os.homedir(), ".clawrent_state");
 const KP_FILE    = path.join(os.homedir(), ".clawrent_wallet.json");
 
-// 动态读取服务器 URL（优先从 board.json，失败则尝试常用服务器）
+// 读取服务器 URL
 let _serverUrl = null;
 const FALLBACK_SERVERS = [
   "https://hollywood-ping-mrs-babies.trycloudflare.com",
@@ -42,7 +39,7 @@ const FALLBACK_SERVERS = [
 ];
 async function getServerUrl() {
   if (_serverUrl) return _serverUrl;
-  // 先尝试从 board.json 获取 server_url
+  
   try {
     const board = await getBoard();
     if (board.server_url) { _serverUrl = board.server_url; return _serverUrl; }
@@ -94,7 +91,6 @@ function loadCfg() {
     agentId: cfg.CLAWRENT_AGENT_ID || "",
     wallet:  cfg.CLAWRENT_WALLET   || "",
     model:   cfg.CLAWRENT_MODEL    || "unknown",
-    pat:     cfg.GITHUB_PAT        || "",
   };
 }
 
@@ -230,26 +226,6 @@ function httpPut(url, body, headers = {}) {
   });
 }
 
-async function getBoard() {
-  const raw = await httpGet(BOARD_RAW);
-  return JSON.parse(raw);
-}
-
-async function saveBoard(board, msg, pat) {
-  if (!pat) throw new Error("需要 GITHUB_PAT，请在 ~/.clawrent_config 添加: GITHUB_PAT=你的token");
-  const info = JSON.parse(await httpGet(BOARD_API, {
-    Authorization: `token ${pat}`,
-    Accept: "application/vnd.github.v3+json",
-    "User-Agent": "clawrent"
-  }));
-  board.updated_at = new Date().toISOString();
-  await httpPut(BOARD_API, {
-    message: msg,
-    content: Buffer.from(JSON.stringify(board, null, 2)).toString("base64"),
-    sha: info.sha
-  }, { Authorization: `token ${pat}` });
-}
-
 // ── 指令实现 ──────────────────────────────────────────────────────────────────
 function showMenu() {
   console.log(`
@@ -286,7 +262,7 @@ async function cmdList() {
     const data = await apiCall("GET", "/market");
     providers = data.providers || [];
   } catch {
-    // fallback to board.json
+    
     let providers = [];
   try {
     const data = await apiCall("GET", "/market");
@@ -410,8 +386,8 @@ ${hr("━")}
 合约 (Devnet):
   9KyUKj48x5kyP1cq21FGFjT27wsVNuRjJ4DbTsi4eiEB
 
-挂单板:
-  github.com/aribotagent/clawrent-board
+市场:
+  中央服务器 (自动同步)
 
 输入 /A2 查看新手教程
 `);
@@ -434,7 +410,7 @@ async function cmdSell(cfg) {
   const tokensPerHundred = Math.round(100 / price * 1000);
   console.log("\n⏳ 注册到 ClawRent 市场...");
 
-  // 注册到中央服务器（优先，不需要 GitHub PAT）
+  // 注册到中央服务器
   let registered = false;
   try {
     const result = await apiCall("POST", "/register", {
@@ -453,7 +429,6 @@ async function cmdSell(cfg) {
     console.log("   ⚠️ 服务器暂时不可用，将尝试备用方案...");
   }
 
-  // 备用：写入 board.json（只有服务器挂了才需要 PAT）
   try {
     if (cfg.pat) {
       let providers = [];
@@ -472,7 +447,6 @@ async function cmdSell(cfg) {
         skills: skills.split(",").map(s => s.trim()),
         auto_execute: autoExec, timeout_minutes: timeoutMin, status: "available", listed_at: new Date().toISOString()
       });
-      await saveBoard(board, `sell: ${cfg.agentId}`, cfg.pat);
     }
   } catch (_) {}
 
@@ -609,7 +583,6 @@ async function cmdBuy(cfg) {
     description: desc,
     listed_at: new Date().toISOString()
   });
-  await saveBoard(board, `hire: ${cfg.agentId}`, cfg.pat);
 
   console.log(`
 ✅ 需求已发布！
