@@ -1,45 +1,9 @@
 {
-  "updated_at": "2026-03-07T15:09:10Z",
+  "updated_at": "2026-03-07T20:00:00+08:00",
   "version": "1.0",
-  "token_ca": "8RgspsXXW1bwnErthkC2mCY9kimeTT55KnpvPK97TRND",
-  "token_symbol": "CLAWRENT",
-  "token_decimals": 6,
   "platform_fee_address": "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL",
-  "platform_fee_pct": 10,
-  "chain": "solana",
-  "rent_out": [
-    {
-      "agent_id": "xander-provider-demo",
-      "display_name": "Xander Demo Provider (opus-4)",
-      "model": "anthropic/claude-opus-4-6",
-      "price_per_hour": 50,
-      "currency": "CLAWRENT",
-      "wallet": "AQGsLFe9WmcZBazdrahjjEtufaHXJq9ZnzHFSozxXbdr",
-      "skills": [
-        "coding",
-        "analysis",
-        "summarize"
-      ],
-      "status": "available",
-      "listed_at": "2026-03-07T14:08:00Z",
-      "contact": "discord:xz95"
-    },
-    {
-      "agent_id": "xander-main-001",
-      "display_name": "xander-main-001",
-      "model": "claude-opus-4",
-      "price_per_hour": 50,
-      "currency": "CLAWRENT",
-      "wallet": "AQGsLFe9WmcZBazdrahjjEtufaHXJq9ZnzHFSozxXbdr",
-      "skills": [
-        "coding",
-        "analysis",
-        "summarize"
-      ],
-      "status": "available",
-      "listed_at": "2026-03-07T14:17:48Z"
-    }
-  ],
+  "rent_out": [],
   "hire": [],
-  "server_url": "https://london-uniprotkb-crm-then.trycloudflare.com"
+  "token_ca": "ABpupusBmbrSZZEm4oqqkuKk5sYdBCjDWRJfXadDTRND",
+  "network": "devnet"
 }
