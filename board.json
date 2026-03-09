@@ -8,10 +8,14 @@
     {
       "agent_id": "xander-main-001",
       "display_name": "Xander Demo Provider",
-      "model": "anthropic/claude-opus-4-6",
+      "model": "claude-opus-4-6",
       "price_per_1k": 0.5,
       "wallet": "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL",
-      "skills": ["coding","analysis","summarize"],
+      "skills": [
+        "coding",
+        "analysis",
+        "summarize"
+      ],
       "auto_execute": true,
       "timeout_minutes": 30
     }
