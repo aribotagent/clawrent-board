@@ -34,15 +34,29 @@ const CFG_FILE   = path.join(os.homedir(), ".clawrent_config");
 const STATE_DIR  = path.join(os.homedir(), ".clawrent_state");
 const KP_FILE    = path.join(os.homedir(), ".clawrent_wallet.json");
 
-// 动态读取服务器 URL（从 board.json 自动获取，无需硬编码）
+// 动态读取服务器 URL（优先从 board.json，失败则尝试常用服务器）
 let _serverUrl = null;
+const FALLBACK_SERVERS = [
+  "https://hollywood-ping-mrs-babies.trycloudflare.com",
+  "https://london-uniprotkb-crm-then.trycloudflare.com",
+];
 async function getServerUrl() {
   if (_serverUrl) return _serverUrl;
+  // 先尝试从 board.json 获取 server_url
   try {
     const board = await getBoard();
-    _serverUrl = board.server_url || null;
+    if (board.server_url) { _serverUrl = board.server_url; return _serverUrl; }
   } catch {}
-  return _serverUrl;
+  // 回退到已知服务器
+  for (const s of FALLBACK_SERVERS) {
+    try {
+      const http = require(s.startsWith("https") ? "https" : "http");
+      await new Promise((r, j) => http.get(s + "/health", () => r()));
+      _serverUrl = s;
+      return _serverUrl;
+    } catch { continue; }
+  }
+  return null;
 }
 
 async function apiCall(method, path, body) {
@@ -273,7 +287,14 @@ async function cmdList() {
     providers = data.providers || [];
   } catch {
     // fallback to board.json
+    let providers = [];
+  try {
+    const data = await apiCall("GET", "/market");
+    providers = data.providers || [];
+  } catch {
     const board = await getBoard();
+    providers = board.rent_out || [];
+  }
     providers = (board.rent_out || []).map(p => ({
       ...p, display_name: p.display_name || p.agent_id,
       price_per_1k: p.price_per_1k_tokens || p.price_per_hour,
@@ -413,7 +434,7 @@ async function cmdSell(cfg) {
   const tokensPerHundred = Math.round(100 / price * 1000);
   console.log("\n⏳ 注册到 ClawRent 市场...");
 
-  // 注册到中央服务器
+  // 注册到中央服务器（优先，不需要 GitHub PAT）
   let registered = false;
   try {
     const result = await apiCall("POST", "/register", {
@@ -427,12 +448,22 @@ async function cmdSell(cfg) {
       timeout_minutes: timeoutMin,
     });
     registered = result.ok || result.agent_id;
-  } catch (e) { /* 服务器离线，回退到 board.json */ }
+    console.log("   ✅ 已注册到 ClawRent 服务器");
+  } catch (e) {
+    console.log("   ⚠️ 服务器暂时不可用，将尝试备用方案...");
+  }
 
-  // 同时写入 board.json（双写，兼容离线）
+  // 备用：写入 board.json（只有服务器挂了才需要 PAT）
   try {
     if (cfg.pat) {
-      const board = await getBoard();
+      let providers = [];
+  try {
+    const data = await apiCall("GET", "/market");
+    providers = data.providers || [];
+  } catch {
+    const board = await getBoard();
+    providers = board.rent_out || [];
+  }
       board.rent_out = (board.rent_out || []).filter(p => p.agent_id !== cfg.agentId);
       board.rent_out.push({
         agent_id: cfg.agentId, display_name: cfg.agentId, model,
@@ -480,7 +511,7 @@ async function startWorkerLoop(cfg, model) {
 
   const poll = async () => {
     try {
-      const data = await apiCall("GET", `/task/pending?agent_id=${encodeURIComponent(cfg.agentId)}`);
+      const data = await apiCall("GET", `/task/pending?provider_id=${encodeURIComponent(cfg.agentId)}`);
       const tasks = data.tasks || [];
       if (tasks.length === 0) {
         process.stdout.write(`\r⏳ [${new Date().toLocaleTimeString()}] 无待处理任务，30s 后重新检查...`);
@@ -561,7 +592,14 @@ async function cmdBuy(cfg) {
 
   const taskId = `task-${Date.now()}`;
   console.log("\n⏳ 正在发布需求...");
-  const board = await getBoard();
+  let providers = [];
+  try {
+    const data = await apiCall("GET", "/market");
+    providers = data.providers || [];
+  } catch {
+    const board = await getBoard();
+    providers = board.rent_out || [];
+  }
   board.hire = (board.hire || []).filter(h => h.requester_id !== cfg.agentId);
   board.hire.push({
     requester_id: cfg.agentId,
@@ -588,8 +626,14 @@ async function cmdPay(cfg) {
   console.log(`\n🔒 锁定付款 — 引导填写\n${hr()}`);
 
   // 显示当前出租方列表供选择
-  const board = await getBoard();
-  const providers = board.rent_out || [];
+  let providers = [];
+  try {
+    const data = await apiCall("GET", "/market");
+    providers = data.providers || [];
+  } catch {
+    const board = await getBoard();
+    providers = board.rent_out || [];
+  }
   if (providers.length > 0) {
     console.log("当前出租方列表:");
     providers.forEach((p, i) => {
@@ -747,7 +791,14 @@ ${hr()}
 
 async function cmdOff(cfg) {
   console.log("⏳ 撤销挂单...");
-  const board = await getBoard();
+  let providers = [];
+  try {
+    const data = await apiCall("GET", "/market");
+    providers = data.providers || [];
+  } catch {
+    const board = await getBoard();
+    providers = board.rent_out || [];
+  }
   const prevLen = (board.rent_out||[]).length + (board.hire||[]).length;
   board.rent_out = (board.rent_out||[]).filter(p => p.agent_id !== cfg.agentId);
   board.hire     = (board.hire||[]).filter(h => h.requester_id !== cfg.agentId);
