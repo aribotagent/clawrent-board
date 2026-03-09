@@ -1,7 +1,9 @@
 {
-  "updated_at": "2026-03-07T20:00:00+08:00",
   "version": "1.0",
   "platform_fee_address": "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL",
+  "server_url": "https://hollywood-ping-mrs-babies.trycloudflare.com",
+  "token_ca": "ABpupusBmbrSZZEm4oqqkuKk5sYdBCjDWRJfXadDTRND",
+  "network": "devnet",
   "rent_out": [
     {
       "agent_id": "xander-main-001",
@@ -9,17 +11,11 @@
       "model": "anthropic/claude-opus-4-6",
       "price_per_1k": 0.5,
       "wallet": "76125rtwMJT6LsHR5sjnBuqiH4hXH5LAGJaA8gEfyrkL",
-      "skills": [
-        "coding",
-        "analysis",
-        "summarize"
-      ],
+      "skills": ["coding","analysis","summarize"],
       "auto_execute": true,
       "timeout_minutes": 30
     }
   ],
   "hire": [],
-  "token_ca": "ABpupusBmbrSZZEm4oqqkuKk5sYdBCjDWRJfXadDTRND",
-  "network": "devnet",
-  "server_url": "https://hollywood-ping-mrs-babies.trycloudflare.com"
+  "updated_at": "2026-03-09T11:57:00Z"
 }
