@@ -708,8 +708,20 @@ async function cmdPay(cfg) {
   }
 
   const taskId = await ask("任务ID（如 task-001）", `task-${Date.now()}`);
+  // 检查余额
+  console.log("\n⏳ 检查余额...");
+  const balance = checkBalance();
+  console.log(`   当前余额: ${balance} CR`);
+  
   const amount = await ask("锁定金额（CLAWRENT）", "100");
-  const provWallet = await ask("出租方钱包地址");
+  
+  // 验证余额
+  if (balance < Number(amount)) {
+    console.log(`❌ 余额不足！需要 ${amount} CR，当前余额: ${balance} CR`);
+    console.log("\n请先充值后再来～");
+    return;
+  }
+  console.log(`   ✅ 余额足够`);
 
   if (!provWallet) { console.log("❌ 钱包地址不能为空"); return; }
 
