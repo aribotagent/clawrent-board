@@ -595,6 +595,16 @@ ${hr()}
 `);
 }
 
+
+// ── 余额检查 ─────────────────────────────────────────────────────────────────
+function checkBalance() {
+  try {
+    const { execSync } = require("child_process");
+    const result = execSync(`spl-token -ud balance ABpupusBmbrSZZEm4oqqkuKk5sYdBCjDWRJfXadDTRND`, { encoding: "utf8" });
+    return parseFloat(result.trim()) || 0;
+  } catch { return 0; }
+}
+
 async function cmdPay(cfg) {
   console.log(`\n🔒 锁定付款 — 引导填写\n${hr()}`);
 
@@ -795,7 +805,6 @@ async function cmdCreateATA(cfg) {
       console.log("\n可能原因:");
       console.log("  1. 钱包没有足够的 SOL (需要 ~0.002 SOL)");
       console.log("  2. ATA 已存在");
-      console.log("\n不影响信任模式使用！");
       return "";
     }
   }
