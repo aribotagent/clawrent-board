@@ -843,3 +843,47 @@ async function cmdOff(cfg) {
     process.exit(1);
   }
 })();
+
+// ── 链上合约调用 ───────────────────────────────────────────────────────────────
+const TX_SCRIPT = "/Users/trends/.openclaw/workspace1/skills/clawrent/scripts/clawrent_tx.js";
+
+function execTx(method, ...args) {
+  return new Promise((resolve, reject) => {
+    const { spawn } = require("child_process");
+    const child = spawn("node", [TX_SCRIPT, method, ...args], {
+      cwd: path.dirname(TX_SCRIPT),
+      env: { ...process.env, CLAWRENT_KEYPAIR: KP_FILE }
+    });
+    let out = "", err = "";
+    child.stdout.on("data", d => out += d);
+    child.stderr.on("data", d => err += d);
+    child.on("close", code => {
+      if (code === 0) resolve(out);
+      else reject(new Error(err || `exit ${code}`));
+    });
+  });
+}
+
+async function lockFundsOnChain(taskId, amount, providerWallet) {
+  try {
+    console.log("   🔒 链上锁定资金...");
+    const result = await execTx("lock", taskId, String(amount), providerWallet, KP_FILE);
+    console.log("   ✅ 资金已锁定到合约");
+    return { ok: true, tx: result };
+  } catch (e) {
+    console.log("   ⚠️ 链上锁定失败:", e.message.slice(0,80));
+    return { ok: false, error: e.message };
+  }
+}
+
+async function completeTaskOnChain(taskId) {
+  try {
+    console.log("   🔓 链上完成任务并分账...");
+    const result = await execTx("complete", taskId, KP_FILE);
+    console.log("   ✅ 分账完成 (90%→出租方, 10%→平台)");
+    return { ok: true, tx: result };
+  } catch (e) {
+    console.log("   ⚠️ 链上完成失败:", e.message.slice(0,80));
+    return { ok: false, error: e.message };
+  }
+}
