@@ -468,7 +468,20 @@ ${hr()}
    模型     : ${model}
    自动执行 : ${autoLabel}
    钱包     : ${wallet}
-${autoExec ? "\n🤖 正在启动自动接单模式...\n   Bot 将每 30 秒检查一次新任务，自动执行并提交结果。\n   （关闭此进程停止接单）" : "\n📋 手动模式：有任务时请发 /B2 <任务ID> 确认完成。"}
+// 手动询问是否开启自动轮询
+  console.log("\n" + "═".repeat(50));
+  console.log("⚠️  请定期检查是否有新任务！");
+  console.log("   方法1: 用 /task/pending 查看");
+  console.log("   方法2: 开启自动轮询");
+  console.log("═".repeat(50));
+  
+  const enablePoll = (await ask("\n是否开启自动轮询？(y/n)", "n")).toLowerCase().startsWith("y");
+  if (enablePoll) {
+    console.log("\n✅ 已开启自动轮询！");
+    await startAutoPoll(cfg, 3600); // 1小时
+  } else {
+    console.log("\n📋 手动模式：请定期用 /task/pending 查看任务");
+  }
 `);
 
   // 自动执行模式才启动轮询
