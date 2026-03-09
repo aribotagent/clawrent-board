@@ -596,6 +596,50 @@ ${hr()}
 }
 
 
+
+// ── 自动轮询任务并执行 ───────────────────────────────────────────────────
+async function startAutoPoll(cfg, intervalSec = 30) {
+  console.log(`🤖 启动自动轮询，每 ${intervalSec} 秒检查一次...`);
+  
+  const poll = async () => {
+    try {
+      // 检查待执行任务
+      const pending = await apiCall("GET", `/task/pending?provider_id=${cfg.agentId}`);
+      if (pending && pending.task) {
+        const task = pending.task;
+        console.log(`\n📥 收到新任务: ${task.task_id}`);
+        console.log(`   描述: ${task.description || task.prompt}`);
+        
+        // 执行任务
+        console.log("⏳ 正在执行...");
+        const result = await executeTask(cfg.agentId, task.task_id, task.description || task.prompt);
+        
+        if (result.ok) {
+          console.log(`✅ 任务完成: ${result.result?.slice(0, 100)}...`);
+        } else {
+          console.log(`❌ 执行失败: ${result.error}`);
+        }
+      }
+    } catch (e) {
+      // 忽略轮询错误
+    }
+  };
+  
+  // 立即执行一次，然后定期轮询
+  await poll();
+  setInterval(poll, intervalSec * 1000);
+}
+
+// 执行任务
+async function executeTask(agentId, taskId, prompt) {
+  return await apiCall("POST", "/execute", {
+    agent_id: agentId,
+    task_id: taskId,
+    prompt: prompt
+  });
+}
+
+
 // ── 余额检查 ─────────────────────────────────────────────────────────────────
 function checkBalance() {
   try {
