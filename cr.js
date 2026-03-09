@@ -34,8 +34,8 @@ const KP_FILE    = path.join(os.homedir(), ".clawrent_wallet.json");
 // 读取服务器 URL
 let _serverUrl = null;
 const FALLBACK_SERVERS = [
-  "https://hollywood-ping-mrs-babies.trycloudflare.com",
-  "https://london-uniprotkb-crm-then.trycloudflare.com",
+  "https://flux-advanced-chairs-ventures.trycloudflare.com",
+  "https://flux-advanced-chairs-ventures.trycloudflare.com",
 ];
 async function getServerUrl() {
   if (_serverUrl) return _serverUrl;
