@@ -808,6 +808,41 @@ async function cmdOff(cfg) {
   console.log("✅ 挂单已撤销");
 }
 
+
+// ── /A10: 创建 Token ATA ───────────────────────────────────────────────────
+async function cmdCreateATA(cfg) {
+  const TOKEN_MINT = "ABpupusBmbrSZZEm4oqqkuKk5sYdBCjDWRJfXadDTRND";
+  process.env.PATH = process.env.PATH + ":/Users/trends/.local/share/solana/install/active_release/bin";
+  
+  console.log("\n⏳ 正在创建 Token ATA...");
+  
+  const { execSync } = require("child_process");
+  
+  try {
+    execSync(`spl-token -ud create-account ${TOKEN_MINT}`, { encoding: "utf8" });
+    console.log("✅ Token ATA 创建成功！");
+  } catch (e) {
+    if (e.message.includes("Account already exists")) {
+      console.log("✅ Token ATA 已存在！");
+    } else {
+      console.log("❌ 创建失败:", e.message.split("\n")[0]);
+      console.log("\n可能原因:");
+      console.log("  1. 钱包没有足够的 SOL (需要 ~0.002 SOL)");
+      console.log("  2. ATA 已存在");
+      console.log("\n不影响信任模式使用！");
+      return "";
+    }
+  }
+  
+  // 显示余额
+  try {
+    const bal = execSync(`spl-token -ud balance ${TOKEN_MINT}`, { encoding: "utf8" });
+    console.log(`当前余额: ${bal.trim()} CR`);
+  } catch {}
+  
+  return "";
+}
+
 // ── 主入口 ────────────────────────────────────────────────────────────────────
 (async () => {
   const [,, rawCmd, ...args] = process.argv;
@@ -829,6 +864,7 @@ async function cmdOff(cfg) {
       case "/a1":  await cmdList(); break;
       case "/a2":  cmdTutorial(); break;
       case "/a3":  cmdIntro(); break;
+    case "/a10": await cmdCreateATA(cfg); break;
       case "/b1":  await cmdSell(cfg); break;
       case "/b2":  cmdDone(args[0] || await ask("任务ID"), cfg); break;
       case "/b3":  await cmdOff(cfg); break;
